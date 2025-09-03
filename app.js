@@ -10,23 +10,20 @@ const cors = require("cors");
 dotenv.config();
 const app = express();
 
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: ["*", "https://mern-frontend-h9f5.vercel.app/"] }));
 app.use(express.json()); // for parsing application/json
 const mongoose = require("mongoose");
 connectToDatabase();
+const BASE_URL = "https://mern-backend-a09y.onrender.com";
 app.get("/", (req, res) => {
   res.status(400).json({ message: "how are u" });
 });
 
 // create book
 app.post("/book", upload.single("image"), async (req, res) => {
-  let fileName;
-  if (!req.file) {
-    fileName =
-      "https://www.google.com/url?sa=i&url=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FImage&psig=AOvVaw36kwqosDkIMIFAIr7cYv2e&ust=1753354718880000&source=images&cd=vfe&opi=89978449&ved=0CBIQjRxqFwoTCPjR3rvp0o4DFQAAAAAdAAAAABAE";
-  } else {
-    fileName = "http://localhost:3000/" + req.file.filename;
-  }
+  let fileName = req.file
+    ? `${BASE_URL}/${req.file.filename}`
+    : "https://cdn.vectorstock.com/i/preview-1x/77/30/default-avatar-profile-icon-grey-photo-placeholder-vector-17317730.jpg";
 
   const {
     bookName,
@@ -82,46 +79,40 @@ app.get("/book/:id", async (req, res) => {
   }
 });
 
-// delete operation  
+// delete operation
 app.delete("/book/:id", async (req, res) => {
-    const id = req.params.id;
+  const id = req.params.id;
 
-    try {
-        const book = await Book.findById(id);
+  try {
+    const book = await Book.findById(id);
 
-        if (!book) {
-            return res.status(404).json({
-                message: "Book not found",
-            });
-        }
-
-        // Delete image file only if it's stored locally (not external link)
-        if (book.imageUrl && book.imageUrl.startsWith("http://localhost:3000/")) {
-            const localHostUrlLength = "http://localhost:3000/".length;
-            const imagePath = book.imageUrl.slice(localHostUrlLength);
-
-            fs.unlink(`storage/${imagePath}`, (err) => {
-                if (err) {
-                    console.error("Error deleting file:", err);
-                } else {
-                    console.log("Image file deleted successfully");
-                }
-            });
-        }
-
-        // Delete book from DB
-        await Book.findByIdAndDelete(id);
-
-        res.status(200).json({
-            message: "Book Deleted Successfully",
-        });
-
-    } catch (error) {
-        console.error("Error deleting book:", error);
-        res.status(500).json({
-            message: "Something went wrong",
-        });
+    if (!book) {
+      return res.status(404).json({
+        message: "Book not found",
+      });
     }
+
+    // Delete image file only if it's stored locally (not external link)
+    if (book.imageUrl && book.imageUrl.startsWith(BASE_URL)) {
+      const imagePath = book.imageUrl.slice(BASE_URL.length + 1);
+      fs.unlink(`storage/${imagePath}`, (err) => {
+        if (err) console.error("Error deleting file:", err);
+        else console.log("Image file deleted successfully");
+      });
+    }
+
+    // Delete book from DB
+    await Book.findByIdAndDelete(id);
+
+    res.status(200).json({
+      message: "Book Deleted Successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting book:", error);
+    res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
 });
 
 // update operation
@@ -133,37 +124,39 @@ app.patch("/book/:id", upload.single("image"), async (req, res) => {
     authorName,
     publishedAt,
     publication,
-    description,
     isbnNumber,
   } = req.body;
-  const olddatas = await Book.findById(id);
-  let fileName;
-  if (req.file) {
-    const oldImagePath = olddatas.imageUrl;
-    console.log(oldImagePath);
-    const localHostUrlLength = "http://localhost:3000/".length;
-    const newOldImagePath = oldImagePath.slice(localHostUrlLength);
-
-    fs.unlink(`storage/${newOldImagePath}`, (err) => {
-      if (err) {
-        console.log(err);
-      } else {
-        console.log("File deleted succesfully");
-      }
-    });
-    fileName = "http://localhost:3000/" + req.file.filename;
-    //console.log(req.file)
-    // console.log(olddatas)
+  const oldDatas = await Book.findById(id);
+  if (!oldDatas) {
+    return res.status(404).json({ message: "Book not found" });
   }
+
+  let fileName = oldDatas.imageUrl;
+
+  if (req.file) {
+    // delete old file if it was not a placeholder image
+    if (oldDatas.imageUrl && oldDatas.imageUrl.startsWith(BASE_URL)) {
+      const oldImagePath = oldDatas.imageUrl.slice(BASE_URL.length + 1);
+      fs.unlink(`storage/${oldImagePath}`, (err) => {
+        if (err) console.log("Error deleting old file:", err);
+        else console.log("Old file deleted successfully");
+      });
+    }
+
+    // save new file path
+    fileName = `${BASE_URL}/${req.file.filename}`;
+  }
+
   await Book.findByIdAndUpdate(id, {
-    bookName: bookName,
-    bookPrice: bookPrice,
-    authorName: authorName,
-    publication: publication,
-    publishedAt: publishedAt,
-    isbnNumber: isbnNumber,
-    description: description,
+    bookName,
+    bookPrice,
+    authorName,
+    publication,
+    publishedAt,
+    isbnNumber,
+    imageUrl: fileName, //  update image URL if changed
   });
+
   res.status(200).json({
     message: "Book Updated Successfully",
   });
