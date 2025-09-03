@@ -10,7 +10,7 @@ const cors = require("cors");
 dotenv.config();
 const app = express();
 
-app.use(cors({ origin: ["*", "https://mern-frontend-h9f5.vercel.app/"] }));
+app.use(cors({ origin: ["*", "https://mern-frontend-h9f5.vercel.app"] }));
 app.use(express.json()); // for parsing application/json
 const mongoose = require("mongoose");
 connectToDatabase();
